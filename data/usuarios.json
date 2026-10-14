@@ -1,0 +1,42 @@
+[
+  {
+    "id": 1,
+    "username": "admin",
+    "password": "admin123",
+    "nombre": "Administrador General",
+    "rol": "Admin",
+    "sector": "Todos"
+  },
+  {
+    "id": 2,
+    "username": "gobierno",
+    "password": "gobierno123",
+    "nombre": "Ing. Sofía Morales (Secretaría)",
+    "rol": "Gobierno",
+    "sector": "Distrito"
+  },
+  {
+    "id": 3,
+    "username": "carlos_norte",
+    "password": "comunidad123",
+    "nombre": "Carlos Vega (Líder Comunitario)",
+    "rol": "Comunidad",
+    "sector": "Sector Norte"
+  },
+  {
+    "id": 4,
+    "username": "mariana_centro",
+    "password": "comunidad123",
+    "nombre": "Mariana Ruiz (Vecina)",
+    "rol": "Comunidad",
+    "sector": "Sector Centro"
+  },
+  {
+    "id": 5,
+    "username": "jorge_sur",
+    "password": "comunidad123",
+    "nombre": "Jorge Castro (Vecino)",
+    "rol": "Comunidad",
+    "sector": "Sector Sur"
+  }
+]

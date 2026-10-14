@@ -1,0 +1,114 @@
+[
+  {
+    "id": 1,
+    "sector": "Sector Norte",
+    "descripcion": "Fuga importante de agua en la avenida principal reparándose.",
+    "tipo_incidente": "Alcantarillado",
+    "estado": "EnProceso",
+    "nivel_prioridad": 5
+  },
+  {
+    "id": 2,
+    "sector": "Sector Centro",
+    "descripcion": "Transformador averiado con chispas en poste de alumbrado público.",
+    "tipo_incidente": "FallaElectrica",
+    "estado": "Reportado",
+    "nivel_prioridad": 4
+  },
+  {
+    "id": 3,
+    "sector": "Sector Sur",
+    "descripcion": "Desbordamiento de aguas negras frente a colegio distrital tras lluvia.",
+    "tipo_incidente": "Alcantarillado",
+    "estado": "Reportado",
+    "nivel_prioridad": 4
+  },
+  {
+    "id": 4,
+    "sector": "Sector Norte",
+    "descripcion": "Poste inclinado con cableado de media tensión colgando sobre la acera.",
+    "tipo_incidente": "FallaElectrica",
+    "estado": "EnProceso",
+    "nivel_prioridad": 5
+  },
+  {
+    "id": 5,
+    "sector": "Sector Norte",
+    "descripcion": "Fuga importante de agua potable inundando la vía pública.",
+    "tipo_incidente": "Alcantarillado",
+    "estado": "Reportado",
+    "nivel_prioridad": 2
+  },
+  {
+    "id": 6,
+    "sector": "Sector Norte",
+    "descripcion": "Fuga importante de agua potable inundando la vía pública.",
+    "tipo_incidente": "Alcantarillado",
+    "estado": "Reportado",
+    "nivel_prioridad": 2
+  },
+  {
+    "id": 7,
+    "sector": "Sector Norte",
+    "descripcion": "Fuga importante de agua potable inundando la vía pública.",
+    "tipo_incidente": "Alcantarillado",
+    "estado": "Reportado",
+    "nivel_prioridad": 2
+  },
+  {
+    "id": 8,
+    "sector": "Sector Norte",
+    "descripcion": "Fuga importante de agua potable inundando la vía pública.",
+    "tipo_incidente": "Alcantarillado",
+    "estado": "Reportado",
+    "nivel_prioridad": 2
+  },
+  {
+    "id": 10,
+    "sector": "Sector Norte",
+    "descripcion": "Fuga importante de agua potable inundando la vía pública.",
+    "tipo_incidente": "Alcantarillado",
+    "estado": "Reportado",
+    "nivel_prioridad": 2
+  },
+  {
+    "id": 11,
+    "sector": "Sector Norte",
+    "descripcion": "Fuga importante de agua potable inundando la vía pública.",
+    "tipo_incidente": "Alcantarillado",
+    "estado": "Reportado",
+    "nivel_prioridad": 3
+  },
+  {
+    "id": 12,
+    "sector": "Sector Norte",
+    "descripcion": "Fuga importante de agua potable inundando la vía pública.",
+    "tipo_incidente": "Alcantarillado",
+    "estado": "Reportado",
+    "nivel_prioridad": 2
+  },
+  {
+    "id": 13,
+    "sector": "Sector Norte",
+    "descripcion": "Fuga importante de agua potable inundando la vía pública.",
+    "tipo_incidente": "Alcantarillado",
+    "estado": "Reportado",
+    "nivel_prioridad": 2
+  },
+  {
+    "id": 14,
+    "sector": "Sector Norte",
+    "descripcion": "Fuga importante de agua potable inundando la vía pública.",
+    "tipo_incidente": "Alcantarillado",
+    "estado": "Reportado",
+    "nivel_prioridad": 2
+  },
+  {
+    "id": 15,
+    "sector": "Sector Norte",
+    "descripcion": "Fuga importante de agua potable inundando la vía pública.",
+    "tipo_incidente": "Alcantarillado",
+    "estado": "Reportado",
+    "nivel_prioridad": 2
+  }
+]
