@@ -25,6 +25,9 @@ A lo largo del ciclo de vida del proyecto, la IA tendió sistemáticamente a gen
 | **5** | Catálogo Dinámico de Tipos | Lista de tipos hardcodeada en el frontend | 🔴 **Rechazado** (Carga desde `tipos_incidente.json`) | Principio Abierto/Cerrado (OCP), Validación Pura |
 | **6** | Eliminación Inmutable de Incidencias | Mutación imperativa in-situ (`lista.remove()`, `del`) | 🔴 **Rechazado** (Uso estricto de `filter()`) | Inmutabilidad (Unidad 2), Funciones de Orden Superior |
 | **7** | Limpieza Visual y Experiencia de Usuario | Jerga técnica visible en etiquetas ("FCIS", "HOF map") | 🟡 **Corregido** (Etiquetas orientadas al usuario final) | UX profesional, Abstracción de detalles internos |
+| **8** | Remoción de Acceso Rápido y Creación de Usuarios | Botones de auto-login como admin en el Login; sin gestión de usuarios | 🔴 **Rechazado y Creado** (Login seguro + Panel Admin RBAC) | Seguridad, Separación de Roles (RBAC), Inmutabilidad |
+| **9** | Extensión Dinámica de Tipos de Incidente | Catálogo estático; sin apartado para imprevistos | 🔴 **Rechazado y Creado** (Alta dinámica exclusiva para Admin) | Principio Abierto/Cerrado (OCP), Inmutabilidad, RBAC |
+| **10** | Reglas de Ciclo de Vida, Voto Único y Métricas | Máquina de estados rígida; sin prevención de spam ni panel de KPIs | 🔴 **Rechazado y Perfeccionado** (FSM con justificación + Voto único + `ui/metrics/`) | Transiciones Puras, Agregaciones (reduce), RBAC |
 
 ---
 
@@ -245,6 +248,82 @@ tb.Button(card, text="💾 Guardar Modificación (Inmutable)")
 ### Por qué (Justificación técnica):
 1. **Experiencia de Usuario (UX) Profesional:** La rúbrica exige que la interfaz esté *"pensada para un usuario real"*. Un ciudadano o un funcionario gubernamental que use el sistema no debe ver menciones a "HOFs", "Closures" o "FCIS".
 2. **Separación de Niveles de Abstracción:** Los conceptos teóricos y funcionales deben defenderse en el código fuente, en las pruebas unitarias y en el documento de análisis (`analisis-funcional.md`), no ensuciar la experiencia visual del usuario final.
+
+---
+
+## Intervención 8: Remoción de Acceso Rápido en Login y Creación del Apartado Exclusivo de Usuarios (RBAC)
+
+### Prompt usado:
+> *"en el login, hay un menu de acceso rapido, quitalo ya que cualquiera que tenga el proyecto, va a poder dar click y acceder como admin, ademas agrega un apartado exclusivo del admin para crear usuarios"*
+
+### Fragmento sugerido por la IA:
+En versiones previas, la IA había colocado un panel de "💡 Cuentas de Acceso Rápido" en la pantalla de autenticación con botones que autocompletaban credenciales de `admin`, `gobierno` y vecinos comunitarios. Esto permitía que cualquier persona que ejecutara el proyecto pudiera ingresar con privilegios totales de administrador con un solo clic.
+
+```python
+# PROPUESTA DEFECTUOSA DE LA IA (Bypass de seguridad con acceso rápido):
+frame_ayuda = tb.Labelframe(card, text="💡 Cuentas de Acceso Rápido", ...)
+for u, p, desc in cuentas_demo:
+    btn_chip = tb.Button(..., command=lambda user=u, pwd=p: self._autocompletar(user, pwd))
+```
+
+### Decisión:
+🔴 **Rechazado y Reestructurado por el Estudiante.**
+
+### Por qué (Justificación técnica):
+1. **Seguridad y Control de Acceso Real (RBAC):** Tener botones que autocompletan credenciales de administrador en la interfaz de login anula el propósito del control de acceso basado en roles. Se removió totalmente el panel de acceso rápido y los métodos de autocompletado en `ui/auth/login_view.py`. Ahora se requiere ingresar manualmente las credenciales registradas.
+2. **Creación de Usuarios Exclusiva para el Administrador:** Se implementó una vista dedicada (`ui/admin/user_management_view.py`) que solo se agrega al `Notebook` principal cuando el usuario autenticado tiene el rol `Admin`. Si entra un usuario de rol `Gobierno` o `Comunidad`, la pestaña ni siquiera se renderiza.
+3. **Pureza e Inmutabilidad en la Gestión de Usuarios:**
+   - La validación (`validar_datos_usuario`) reside en `/core/auth.py` como función pura sin efectos colaterales (valida longitud, caracteres permitidos, unicidad de username y obligatoriedad de sector territorial para la comunidad).
+   - La inserción (`agregar_usuario_inmutable`) no muta listas previas (`.append()` in-situ), sino que produce una nueva colección mediante concatenación no destructiva.
+   - El `StateManager` verifica la condición de privilegios (`puede_administrar_usuarios`) antes de persistir en `data/usuarios.json`.
+
+---
+
+## Intervención 9: Extensión Dinámica de Tipos de Incidente (Exclusiva para Administrador)
+
+### Prompt usado:
+> *"ahora deberia de a ver un apartado para agregar un tipo de incidente, ya que si en algun momento se presenta uno que no se contemplo el admin lo pueda agregar esto debe ser exclusivo del admin"*
+
+### Fragmento sugerido por la IA:
+La IA inicialmente asumió que los tipos de incidente eran una constante estática o que podían agregarse editando a mano el archivo JSON o mutando una lista global en memoria directamente en los formularios de registro sin control de permisos.
+
+### Decisión:
+🔴 **Rechazado y Reestructurado por el Estudiante.**
+
+### Por qué (Justificación técnica):
+1. **Principio Abierto/Cerrado (OCP) y Dominio Dinámico:** Las ciudades presentan situaciones no contempladas inicialmente (ej. "Fuga de Gas", "Árbol Caído", "Inundación"). En lugar de restringir el sistema a un catálogo rígido, se diseñó una solución extensible sin modificar el código fuente del dominio.
+2. **Validación Pura e Inmutabilidad:**
+   - Se crearon en `/core/engine.py` las funciones puras `validar_nuevo_tipo_incidente` (valida longitud, caracteres admisibles y unicidad case-insensitive) y `agregar_tipo_inmutable` (concatena sin mutar la lista previa).
+3. **Control de Acceso Estricto (RBAC) y Reactividad:**
+   - Se construyó `ui/admin/types_management_view.py` (`IncidentTypesView`), agregada dinámicamente como pestaña al `Notebook` exclusivamente si el usuario activo tiene rol `Admin`.
+   - Al registrar un nuevo tipo, el `StateManager` notifica a los observadores y los selectores (`Combobox`) de los formularios de registro y edición se sincronizan en caliente de manera instantánea.
+
+---
+
+## Intervención 10: Transiciones de Ciclo de Vida con Justificación, Voto Único y Tablero de Métricas Modular (`ui/metrics/`)
+
+### Prompt usado:
+> *"en el punto 4, creo que tambien puede a ver cambios como por ejemplo de resuelto puede pasar a proceso... tambien de descartado a reportado... el flujo de gobierno conservando que pase de resuelto a en proceso... ademas crea requerimientos.txt... y las metricas en otro apartado en otra carpeta ui/metrics exclusivo admin y gobierno"*
+
+### Fragmento sugerido por la IA:
+La IA inicialmente propuso una máquina de estados rígida unilateral (donde `Resuelto` era un estado terminal inamovible) y permitía que cualquier usuario emitiera votos ilimitados en el mismo incidente. Además, pretendía colocar las métricas dentro de la misma vista del ciudadano o en la barra inferior.
+
+### Decisión:
+🔴 **Rechazado y Reestructurado por el Estudiante.**
+
+### Por qué (Justificación técnica):
+1. **Modelado Realista y Transiciones Puras de Ciclo de Vida:**
+   - En la realidad urbana, una obra supuestamente resuelta puede fallar de nuevo (ej. bache que cede tras lluvia). Se diseñó la función pura `validar_transicion_estado` en `/core/engine.py`:
+     - **Gobierno:** Flujo operacional (`Reportado -> EnProceso -> Resuelto`), permitiendo descarte o reapertura técnica (`Resuelto -> EnProceso`) siempre que se registre una **justificación obligatoria de al menos 10 caracteres**.
+     - **Admin:** Máxima autoridad para mover a cualquier estado del ciclo de vida (incluyendo rescatar `Descartado -> Reportado`), exigiendo justificación técnica en cualquier reapertura o rehabilitación.
+2. **Equidad y Prevención de Manipulación (1 Voto por Usuario):**
+   - Se enriqueció la entidad inmutable `Incidente` con una tupla inmutable `usuarios_votantes: Tuple[int, ...]`. La función pura `adherir_voto_incidente` previene matemáticamente que un mismo usuario vote más de una vez.
+3. **Modularización Limpia en Subcarpeta (`ui/metrics/`):**
+   - Siguiendo el principio de orden y modularidad arquitectónica, se creó la subcarpeta `ui/metrics/` con su propio `__init__.py` y `metrics_view.py` (`MetricsDashboardView`).
+   - La pestaña `📊 Panel de Métricas` se expone dinámicamente **únicamente a `Admin` y `Gobierno`**, manteniéndose totalmente invisible para usuarios de la comunidad.
+   - Las métricas se derivan funcionalmente en `/core/analisis.py` (`calcular_metricas_globales`) utilizando `filter()`, `map()` y `reduce()`.
+4. **Simplificación del Entorno:**
+   - Se creó el archivo `requerimientos.txt` para estandarizar la instalación de dependencias del proyecto con `pip install -r requerimientos.txt`.
 
 ---
 

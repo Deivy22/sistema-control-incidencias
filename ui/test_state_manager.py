@@ -5,13 +5,29 @@ Valida la integración con persistencia, roles, autenticación y mutaciones inmu
 
 import unittest
 from core.models import Usuario
+from data.file_handler import (
+    cargar_usuarios,
+    guardar_usuarios,
+    cargar_incidentes,
+    guardar_incidentes,
+    cargar_tipos_incidente,
+    guardar_tipos_incidente,
+)
 from ui.state_manager import StateManager
 
 
 class TestStateManager(unittest.TestCase):
 
     def setUp(self) -> None:
+        self.usuarios_backup = cargar_usuarios()
+        self.incidentes_backup = cargar_incidentes()
+        self.tipos_backup = cargar_tipos_incidente()
         self.sm = StateManager()
+
+    def tearDown(self) -> None:
+        guardar_usuarios(self.usuarios_backup)
+        guardar_incidentes(self.incidentes_backup)
+        guardar_tipos_incidente(self.tipos_backup)
 
     def test_inicializacion_semillas_y_persistencia(self):
         """Verifica que el StateManager cargue datos persistentes desde disco."""
@@ -206,6 +222,174 @@ class TestStateManager(unittest.TestCase):
 
         # Verificar que el búfer de edición fue limpiado
         self.assertIsNone(self.sm.incidente_en_edicion)
+
+    def test_permisos_administracion_usuarios(self):
+        """Verifica que solo el rol Admin tenga puede_administrar_usuarios en True."""
+        admin = Usuario(id=1, nombre="Admin", rol="Admin", sector="Todos")
+        gobierno = Usuario(id=2, nombre="Gobierno", rol="Gobierno", sector="Distrito")
+        comunidad = Usuario(id=3, nombre="Vecino", rol="Comunidad", sector="Sector Norte")
+
+        # Sin sesión iniciada
+        self.assertFalse(self.sm.puede_administrar_usuarios)
+
+        # Rol Comunidad
+        self.sm.iniciar_sesion(comunidad)
+        self.assertFalse(self.sm.puede_administrar_usuarios)
+
+        # Rol Gobierno
+        self.sm.iniciar_sesion(gobierno)
+        self.assertFalse(self.sm.puede_administrar_usuarios)
+
+        # Rol Admin
+        self.sm.iniciar_sesion(admin)
+        self.assertTrue(self.sm.puede_administrar_usuarios)
+
+    def test_crear_usuario_rechazo_no_admin(self):
+        """Verifica que usuarios sin rol Admin no puedan registrar usuarios."""
+        gobierno = Usuario(id=2, nombre="Gobierno", rol="Gobierno", sector="Distrito")
+        self.sm.iniciar_sesion(gobierno)
+
+        exito, msg = self.sm.crear_usuario(
+            username="intruso",
+            password="password123",
+            nombre="Intruso No Autorizado",
+            rol="Comunidad",
+            sector="Sector Norte"
+        )
+        self.assertFalse(exito)
+        self.assertIn("Acceso denegado", msg)
+
+    def test_crear_usuario_exito_admin_y_autenticacion(self):
+        """Verifica que un Admin pueda crear un usuario y que este pueda autenticarse inmediatamente."""
+        admin = Usuario(id=1, nombre="Admin", rol="Admin", sector="Todos")
+        self.sm.iniciar_sesion(admin)
+
+        username_test = "vecino_test_func"
+        password_test = "claveSegura123"
+
+        exito, msg = self.sm.crear_usuario(
+            username=username_test,
+            password=password_test,
+            nombre="Vecino de Prueba",
+            rol="Comunidad",
+            sector="Sector Sur"
+        )
+        self.assertTrue(exito)
+        self.assertIn("creado con éxito", msg)
+
+        # Verificar que figure en el listado de usuarios
+        usuarios_actuales = self.sm.obtener_usuarios()
+        self.assertTrue(any(u.get("username") == username_test for u in usuarios_actuales))
+
+        # Cerrar sesión del admin
+        self.sm.cerrar_sesion()
+
+        # Autenticarse como el nuevo usuario creado
+        exito_login, msg_login = self.sm.autenticar(username_test, password_test)
+        self.assertTrue(exito_login)
+        self.assertIsNotNone(self.sm.usuario_actual)
+        self.assertEqual(self.sm.usuario_actual.nombre, "Vecino de Prueba")
+        self.assertEqual(self.sm.usuario_actual.rol, "Comunidad")
+        self.assertEqual(self.sm.usuario_actual.sector, "Sector Sur")
+
+    def test_agregar_tipo_incidente_rechazo_no_admin(self):
+        """Verifica que roles sin privilegios de Admin no puedan agregar tipos."""
+        comunidad = Usuario(id=3, nombre="Vecino", rol="Comunidad", sector="Sector Norte")
+        self.sm.iniciar_sesion(comunidad)
+
+        exito, msg = self.sm.agregar_tipo_incidente("Fuga de Gas")
+        self.assertFalse(exito)
+        self.assertIn("Acceso denegado", msg)
+
+    def test_agregar_tipo_incidente_exito_admin(self):
+        """Verifica que un Admin pueda agregar un nuevo tipo y este se refleje en el catálogo."""
+        admin = Usuario(id=1, nombre="Admin", rol="Admin", sector="Todos")
+        self.sm.iniciar_sesion(admin)
+
+        nuevo_tipo = "Hundimiento de Calzada"
+        exito, msg = self.sm.agregar_tipo_incidente(nuevo_tipo)
+        self.assertTrue(exito)
+        self.assertIn("agregado exitosamente", msg)
+
+        tipos_actuales = self.sm.obtener_tipos_incidente()
+        self.assertIn(nuevo_tipo, tipos_actuales)
+
+    def test_adherir_voto_unico_por_usuario(self):
+        """Verifica que StateManager prevenga votos duplicados de un mismo usuario."""
+        vecino = Usuario(id=4, nombre="Vecino Mariana", rol="Comunidad", sector="Sector Centro")
+        self.sm.iniciar_sesion(vecino)
+
+        inc_id = 1
+        # Primer voto exitoso
+        exito_1, msg_1 = self.sm.adherir_voto(inc_id)
+        self.assertTrue(exito_1)
+        self.assertIn("Voto adherido", msg_1)
+
+        # Segundo voto del mismo usuario debe ser rechazado
+        exito_2, msg_2 = self.sm.adherir_voto(inc_id)
+        self.assertFalse(exito_2)
+        self.assertIn("Ya has registrado tu voto", msg_2)
+
+    def test_modificar_incidente_transicion_con_justificacion(self):
+        """Verifica que StateManager valide las transiciones de estado con justificación obligatoria."""
+        gobierno = Usuario(id=2, nombre="Ing. Sofía", rol="Gobierno", sector="Distrito")
+        self.sm.iniciar_sesion(gobierno)
+
+        # Primero pasar a Resuelto
+        exito_res, _ = self.sm.modificar_incidente(
+            incidente_id=1,
+            sector="Sector Norte",
+            descripcion="Colisión múltiple entre dos taxis bloqueando calzada principal.",
+            tipo_incidente="Choque",
+            estado="Resuelto",
+            nivel_prioridad=3
+        )
+        self.assertTrue(exito_res)
+
+        # Intentar reabrir (Resuelto -> EnProceso) sin justificación (debe fallar)
+        exito_reap_err, msg_err = self.sm.modificar_incidente(
+            incidente_id=1,
+            sector="Sector Norte",
+            descripcion="Colisión múltiple entre dos taxis bloqueando calzada principal.",
+            tipo_incidente="Choque",
+            estado="EnProceso",
+            nivel_prioridad=4,
+            justificacion=""
+        )
+        self.assertFalse(exito_reap_err)
+        self.assertIn("justificación técnica", msg_err)
+
+        # Reabrir con justificación válida (debe tener éxito)
+        exito_reap_ok, msg_ok = self.sm.modificar_incidente(
+            incidente_id=1,
+            sector="Sector Norte",
+            descripcion="Colisión múltiple entre dos taxis bloqueando calzada principal.",
+            tipo_incidente="Choque",
+            estado="EnProceso",
+            nivel_prioridad=4,
+            justificacion="Nuevo reporte de derame de aceite sobre la calzada."
+        )
+        self.assertTrue(exito_reap_ok)
+        self.assertIn("actualizado con éxito", msg_ok)
+
+    def test_puede_ver_metricas_roles(self):
+        """Verifica que solo Admin y Gobierno tengan acceso al panel de métricas."""
+        comunidad = Usuario(id=3, nombre="Carlos", rol="Comunidad", sector="Sector Norte")
+        gobierno = Usuario(id=2, nombre="Sofía", rol="Gobierno", sector="Distrito")
+        admin = Usuario(id=1, nombre="Admin", rol="Admin", sector="Todos")
+
+        self.sm.iniciar_sesion(comunidad)
+        self.assertFalse(self.sm.puede_ver_metricas)
+
+        self.sm.iniciar_sesion(gobierno)
+        self.assertTrue(self.sm.puede_ver_metricas)
+
+        self.sm.iniciar_sesion(admin)
+        self.assertTrue(self.sm.puede_ver_metricas)
+
+        metricas = self.sm.obtener_metricas_sistema()
+        self.assertIn("total", metricas)
+        self.assertIn("tasa_resolucion", metricas)
 
 
 if __name__ == "__main__":

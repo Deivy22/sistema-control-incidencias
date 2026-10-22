@@ -6,7 +6,7 @@ El proyecto implementa un **Sistema de Control de Incidencias Ciudadanas**. Su p
 
 La aplicación separa el acceso según tres roles:
 
-- **Admin:** administra globalmente los incidentes y los catálogos del sistema.
+- **Admin:** administra globalmente los incidentes, la extensión del catálogo de tipos de incidente y la creación/gestión exclusiva de usuarios con control de acceso (RBAC).
 - **Gobierno:** consulta y gestiona incidentes con alcance territorial global.
 - **Comunidad:** reporta incidentes y consulta los que pertenecen a su sector.
 

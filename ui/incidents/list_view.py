@@ -107,7 +107,7 @@ class IncidentesListView(tb.Frame):
         frame_tabla = tb.Frame(self, style="Pastel.TFrame")
         frame_tabla.pack(fill=BOTH, expand=True)
 
-        columnas = ("id", "sector", "tipo", "prioridad", "estado", "departamento", "descripcion")
+        columnas = ("id", "fecha", "sector", "tipo", "prioridad", "estado", "departamento", "descripcion")
         self.tree = tb.Treeview(
             frame_tabla,
             columns=columnas,
@@ -117,6 +117,7 @@ class IncidentesListView(tb.Frame):
         )
 
         self.tree.heading("id", text="ID", anchor=W)
+        self.tree.heading("fecha", text="Fecha", anchor=W)
         self.tree.heading("sector", text="Sector", anchor=W)
         self.tree.heading("tipo", text="Tipo", anchor=W)
         self.tree.heading("prioridad", text="Prioridad", anchor=W)
@@ -125,12 +126,13 @@ class IncidentesListView(tb.Frame):
         self.tree.heading("descripcion", text="Descripción", anchor=W)
 
         self.tree.column("id", width=45, minwidth=40, stretch=False)
-        self.tree.column("sector", width=120, minwidth=100)
-        self.tree.column("tipo", width=110, minwidth=90)
+        self.tree.column("fecha", width=120, minwidth=100, stretch=False)
+        self.tree.column("sector", width=110, minwidth=90)
+        self.tree.column("tipo", width=105, minwidth=85)
         self.tree.column("prioridad", width=75, minwidth=60, stretch=False)
         self.tree.column("estado", width=95, minwidth=80, stretch=False)
-        self.tree.column("departamento", width=220, minwidth=180)
-        self.tree.column("descripcion", width=360, minwidth=200)
+        self.tree.column("departamento", width=210, minwidth=170)
+        self.tree.column("descripcion", width=340, minwidth=180)
 
         scroll_y = tb.Scrollbar(frame_tabla, orient=VERTICAL, command=self.tree.yview)
         scroll_x = tb.Scrollbar(frame_tabla, orient=HORIZONTAL, command=self.tree.xview)
@@ -225,8 +227,9 @@ class IncidentesListView(tb.Frame):
         exito, mensaje = self.state_manager.adherir_voto(incidente.id, incremento=1)
         if exito:
             self._seleccionar_por_id(incidente.id)
+            Messagebox.show_info(mensaje, title="Voto Registrado")
         else:
-            Messagebox.show_error(mensaje, title="Error")
+            Messagebox.show_warning(mensaje, title="Voto No Permitido")
 
     def _on_click_borrar_seleccionada(self) -> None:
         """Callback del botón 'Borrar Seleccionada' (restringido a Admin)."""
@@ -306,11 +309,13 @@ class IncidentesListView(tb.Frame):
 
         for inc in incidentes_visibles:
             dpto = self.state_manager.obtener_info_departamento(inc)
+            fecha_str = inc.fecha_reporte if inc.fecha_reporte else "2026-10-28"
             self.tree.insert(
                 "",
                 tk.END,
                 values=(
                     inc.id,
+                    fecha_str,
                     inc.sector,
                     inc.tipo_incidente,
                     f"★ {inc.nivel_prioridad}",

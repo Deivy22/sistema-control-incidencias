@@ -121,3 +121,84 @@ def extraer_ids_incidentes(incidentes: Sequence[Incidente]) -> List[int]:
     """
     return list(map(lambda inc: inc.id, incidentes))
 
+
+# ============================================================================
+# 5. AGREGACIÓN ANALÍTICA Y MÉTRICAS GLOBALES (HOFs & REDUCE)
+# ============================================================================
+
+def calcular_metricas_globales(incidentes: Sequence[Incidente]) -> dict:
+    """
+    Función Pura: Procesa y sintetiza las métricas estadísticas del sistema urbano
+    a partir de una colección inmutable de incidentes, empleando filter, map y reduce.
+
+    Garantía de Pureza:
+    - Transparencia referencial absoluta.
+    - Cero mutaciones de la colección de entrada.
+    """
+    total = len(incidentes)
+    if total == 0:
+        return {
+            "total": 0,
+            "resueltos": 0,
+            "en_proceso": 0,
+            "reportados": 0,
+            "descartados": 0,
+            "tasa_resolucion": 0.0,
+            "criticos_pendientes": 0,
+            "prioridad_total": 0,
+            "promedio_prioridad": 0.0,
+            "por_sector": {},
+            "por_tipo": {},
+        }
+
+    # Conteos declarativos por estado mediante filter()
+    resueltos = len(list(filter(lambda inc: inc.estado == "Resuelto", incidentes)))
+    en_proceso = len(list(filter(lambda inc: inc.estado == "EnProceso", incidentes)))
+    reportados = len(list(filter(lambda inc: inc.estado == "Reportado", incidentes)))
+    descartados = len(list(filter(lambda inc: inc.estado == "Descartado", incidentes)))
+
+    # Incidentes de alta criticidad (prioridad >= 4) aún no resueltos
+    criticos_pendientes = len(list(filter(
+        lambda inc: inc.nivel_prioridad >= 4 and inc.estado in ("Reportado", "EnProceso"),
+        incidentes
+    )))
+
+    # Tasa porcentual de resolución
+    tasa_resolucion = round((resueltos / total) * 100, 1)
+
+    # Prioridad acumulada mediante reduce()
+    prioridad_total = calcular_prioridad_total(incidentes)
+    promedio_prioridad = round(prioridad_total / total, 2)
+
+    # Distribución por sector territorial
+    def acumular_sector(acc: dict, inc: Incidente) -> dict:
+        acc_copia = dict(acc)
+        sec = inc.sector.strip()
+        acc_copia[sec] = acc_copia.get(sec, 0) + 1
+        return acc_copia
+
+    por_sector = reduce(acumular_sector, incidentes, {})
+
+    # Distribución por tipo de incidente
+    def acumular_tipo(acc: dict, inc: Incidente) -> dict:
+        acc_copia = dict(acc)
+        tipo = str(inc.tipo_incidente).strip()
+        acc_copia[tipo] = acc_copia.get(tipo, 0) + 1
+        return acc_copia
+
+    por_tipo = reduce(acumular_tipo, incidentes, {})
+
+    return {
+        "total": total,
+        "resueltos": resueltos,
+        "en_proceso": en_proceso,
+        "reportados": reportados,
+        "descartados": descartados,
+        "tasa_resolucion": tasa_resolucion,
+        "criticos_pendientes": criticos_pendientes,
+        "prioridad_total": prioridad_total,
+        "promedio_prioridad": promedio_prioridad,
+        "por_sector": por_sector,
+        "por_tipo": por_tipo,
+    }
+

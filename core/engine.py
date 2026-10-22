@@ -118,23 +118,42 @@ def es_descripcion_valida(descripcion: str) -> bool:
 # 2. TRANSFORMACIÓN INMUTABLE
 # ============================================================================
 
-def adherir_voto_incidente(incidente: Incidente, incremento: int = 1) -> Incidente:
+def ha_votado_usuario(incidente: Incidente, usuario_id: int) -> bool:
+    """Función Pura: Retorna True si el usuario ya registró su voto para este incidente."""
+    return usuario_id in incidente.usuarios_votantes
+
+
+def adherir_voto_incidente(
+    incidente: Incidente,
+    incremento: int = 1,
+    usuario_id: Optional[int] = None
+) -> Incidente:
     """
-    Función Pura: Incrementa el nivel de prioridad de un incidente reportado por la comunidad.
+    Función Pura: Incrementa el nivel de prioridad de un incidente reportado por la comunidad
+    y opcionalmente registra el ID del votante asegurando la regla de unicidad por usuario.
 
     Garantía de Inmutabilidad:
     - El objeto original `incidente` jamás es mutado.
-    - Se utiliza `replace()` del módulo dataclasses para generar un nuevo objeto `Incidente`
-      con el campo `nivel_prioridad` actualizado y preservando el resto de los atributos.
-    - Preserva la transparencia referencial y la concurrencia segura sin bloqueos.
+    - Se utiliza `replace()` del módulo dataclasses para generar un nuevo objeto `Incidente`.
     """
     if incremento < 0:
         raise ValueError("El incremento de votos/prioridad no puede ser un número negativo.")
 
+    if usuario_id is not None and usuario_id in incidente.usuarios_votantes:
+        raise ValueError(f"El usuario #{usuario_id} ya ha emitido su voto para el incidente #{incidente.id}.")
+
     nueva_prioridad: int = incidente.nivel_prioridad + incremento
+    nuevos_votantes: Tuple[int, ...] = (
+        incidente.usuarios_votantes + (usuario_id,)
+        if usuario_id is not None
+        else incidente.usuarios_votantes
+    )
     
-    # Retorno de una NUEVA instancia inmutable (copia estructural no destructiva)
-    return replace(incidente, nivel_prioridad=nueva_prioridad)
+    return replace(
+        incidente,
+        nivel_prioridad=nueva_prioridad,
+        usuarios_votantes=nuevos_votantes
+    )
 
 
 # ============================================================================
@@ -179,6 +198,64 @@ def validar_tipo_incidente(
     """
     tipo_limpio = tipo.strip().casefold()
     return any(t.strip().casefold() == tipo_limpio for t in tipos_permitidos)
+
+
+def validar_nuevo_tipo_incidente(
+    nuevo_tipo: str,
+    tipos_existentes: Sequence[str]
+) -> ResultadoValidacion:
+    """
+    Función Pura: Valida que un nuevo tipo de incidente cumpla con los requisitos del dominio.
+
+    Criterios:
+    - Longitud mínima: al menos 3 caracteres.
+    - Longitud máxima: no mayor a 50 caracteres.
+    - Caracteres permitidos: letras, números, espacios y guiones.
+    - Unicidad: no existir previamente en el catálogo (comparación case-insensitive).
+
+    Garantía de Pureza:
+    - Transparencia referencial: sin efectos colaterales ni mutaciones.
+    """
+    tipo_limpio = nuevo_tipo.strip()
+
+    if len(tipo_limpio) < 3:
+        return ResultadoValidacion(
+            es_valido=False,
+            motivo=f"El tipo de incidente debe tener al menos 3 caracteres (longitud actual: {len(tipo_limpio)})."
+        )
+
+    if len(tipo_limpio) > 50:
+        return ResultadoValidacion(
+            es_valido=False,
+            motivo=f"El tipo de incidente no debe exceder los 50 caracteres (longitud actual: {len(tipo_limpio)})."
+        )
+
+    if not re.match(r"^[\w\s\sáéíóúÁÉÍÓÚñÑüÜ-]+$", tipo_limpio):
+        return ResultadoValidacion(
+            es_valido=False,
+            motivo="El tipo de incidente solo puede contener letras, números, espacios y guiones."
+        )
+
+    tipo_casefold = tipo_limpio.casefold()
+    ya_existe = any(t.strip().casefold() == tipo_casefold for t in tipos_existentes)
+    if ya_existe:
+        return ResultadoValidacion(
+            es_valido=False,
+            motivo=f"El tipo de incidente '{tipo_limpio}' ya existe en el catálogo."
+        )
+
+    return ResultadoValidacion(es_valido=True, motivo="Tipo de incidente válido.")
+
+
+def agregar_tipo_inmutable(
+    tipos_existentes: Sequence[str],
+    nuevo_tipo: str
+) -> List[str]:
+    """
+    Función Pura: Retorna una nueva lista con el nuevo tipo incorporado.
+    No muta la secuencia previa.
+    """
+    return list(tipos_existentes) + [nuevo_tipo.strip()]
 
 
 # ============================================================================
@@ -255,25 +332,106 @@ def filtrar_por_permisos(
 
 
 # ============================================================================
-# 6. MODIFICACIÓN INMUTABLE DE INCIDENTES
+# 6. MODIFICACIÓN INMUTABLE DE INCIDENTES Y CONTROL DE TRANSICIONES
 # ============================================================================
+
+def validar_transicion_estado(
+    estado_actual: str,
+    nuevo_estado: str,
+    rol_usuario: str,
+    justificacion: str = ""
+) -> ResultadoValidacion:
+    """
+    Función Pura: Valida la transición en el ciclo de vida de una incidencia.
+
+    Reglas de negocio funcionales:
+    - Comunidad: Sin permisos para modificar estados oficiales.
+    - Gobierno:
+      * Reportado -> EnProceso (Atención iniciada).
+      * Reportado / EnProceso -> Descartado (Requiere justificación técnica >= 10 caracteres).
+      * EnProceso -> Resuelto (Solución completada).
+      * Resuelto -> EnProceso (Reapertura técnica por falla reincidente; requiere justificación >= 10 caracteres).
+      * Descartado -> Bloqueado para gobierno (potestad exclusiva de Admin).
+    - Admin:
+      * Control total sobre cualquier estado.
+      * Reaperturas (Resuelto -> EnProceso o Reportado) requieren justificación >= 10 caracteres.
+      * Descarte (hacia Descartado) requiere justificación >= 10 caracteres.
+      * Rehabilitación (desde Descartado a cualquier estado activo) requiere justificación >= 10 caracteres.
+    """
+    if rol_usuario not in ("Admin", "Gobierno"):
+        return ResultadoValidacion(
+            es_valido=False,
+            motivo="Acceso denegado: El rol Comunidad no tiene autorización para modificar el estado de incidentes."
+        )
+
+    if estado_actual == nuevo_estado:
+        return ResultadoValidacion(es_valido=True, motivo="Sin cambio de estado.")
+
+    just_limpia = justificacion.strip()
+
+    if rol_usuario == "Gobierno":
+        if estado_actual == "Reportado" and nuevo_estado == "EnProceso":
+            return ResultadoValidacion(es_valido=True, motivo="Atención de incidente iniciada por cuadrilla gubernamental.")
+
+        if estado_actual in ("Reportado", "EnProceso") and nuevo_estado == "Descartado":
+            if len(just_limpia) < 10:
+                return ResultadoValidacion(
+                    es_valido=False,
+                    motivo="Para descartar un incidente se requiere una justificación técnica de al menos 10 caracteres."
+                )
+            return ResultadoValidacion(es_valido=True, motivo="Incidente descartado con justificación técnica.")
+
+        if estado_actual == "EnProceso" and nuevo_estado == "Resuelto":
+            return ResultadoValidacion(es_valido=True, motivo="Incidente resuelto satisfactoriamente.")
+
+        if estado_actual == "Resuelto" and nuevo_estado == "EnProceso":
+            if len(just_limpia) < 10:
+                return ResultadoValidacion(
+                    es_valido=False,
+                    motivo="La reapertura de un incidente resuelto requiere una justificación técnica de al menos 10 caracteres."
+                )
+            return ResultadoValidacion(es_valido=True, motivo="Reapertura de incidente autorizada para gobierno.")
+
+        if estado_actual == "Descartado":
+            return ResultadoValidacion(
+                es_valido=False,
+                motivo="Solo el Administrador tiene autorización para rehabilitar un incidente que ya fue descartado."
+            )
+
+        return ResultadoValidacion(
+            es_valido=False,
+            motivo=f"Transición no permitida para Gobierno: no puede pasar de '{estado_actual}' a '{nuevo_estado}'."
+        )
+
+    if rol_usuario == "Admin":
+        es_descarte = nuevo_estado == "Descartado"
+        es_reapertura = estado_actual == "Resuelto" and nuevo_estado in ("EnProceso", "Reportado")
+        es_rehabilitacion = estado_actual == "Descartado" and nuevo_estado in ("Reportado", "EnProceso", "Resuelto")
+
+        if (es_descarte or es_reapertura or es_rehabilitacion) and len(just_limpia) < 10:
+            tipo_accion = "descartar" if es_descarte else ("reabrir" if es_reapertura else "rehabilitar")
+            return ResultadoValidacion(
+                es_valido=False,
+                motivo=f"Para {tipo_accion} una incidencia se requiere registrar una justificación de al menos 10 caracteres."
+            )
+
+        return ResultadoValidacion(es_valido=True, motivo=f"Transición administrativa autorizada hacia '{nuevo_estado}'.")
+
+    return ResultadoValidacion(es_valido=False, motivo="Rol de usuario no autorizado.")
+
 
 def actualizar_incidente(
     incidente_original: Incidente,
     sector: Optional[str] = None,
     descripcion: Optional[str] = None,
-    tipo_incidente: Optional[TipoIncidente] = None,
-    estado: Optional[EstadoIncidente] = None,
+    tipo_incidente: Optional[str] = None,
+    estado: Optional[str] = None,
     nivel_prioridad: Optional[int] = None,
+    justificacion_estado: Optional[str] = None,
 ) -> Incidente:
     """
     Función Pura: Retorna una nueva copia inmutable de 'Incidente' con los atributos
     actualizados según los parámetros provistos.
-
-    Garantía de Inmutabilidad y Pureza:
-    - Está ESTRICTAMENTE PROHIBIDO mutar 'incidente_original'.
-    - Utiliza 'dataclasses.replace' para crear una nueva instancia inmutable en memoria.
-    - Preserva los valores originales para cualquier argumento que no sea especificado (None).
     """
     cambios = {}
     if sector is not None:
@@ -286,6 +444,8 @@ def actualizar_incidente(
         cambios["estado"] = estado
     if nivel_prioridad is not None:
         cambios["nivel_prioridad"] = nivel_prioridad
+    if justificacion_estado is not None:
+        cambios["justificacion_estado"] = justificacion_estado.strip()
 
     return replace(incidente_original, **cambios)
 

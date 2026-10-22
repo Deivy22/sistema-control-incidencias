@@ -11,7 +11,7 @@ Cumple con los principios funcionales de:
 """
 
 from dataclasses import dataclass
-from typing import Literal, Union
+from typing import Literal, Tuple, Union
 
 
 # ============================================================================
@@ -76,6 +76,10 @@ class Incidente:
     id: int
     sector: str
     descripcion: str
-    tipo_incidente: TipoIncidente
+    tipo_incidente: Union[TipoIncidente, str]
     estado: EstadoIncidente
     nivel_prioridad: int
+    fecha_reporte: str = ""
+    creado_por: str = "comunidad"
+    usuarios_votantes: Tuple[int, ...] = ()
+    justificacion_estado: str = ""

@@ -5,20 +5,11 @@ Estilo: Paleta Pastel (Soft Sand & Peachy Delight)
 """
 
 import tkinter as tk
-from typing import Callable, Optional
+from typing import Callable
 import ttkbootstrap as tb
-from ttkbootstrap.constants import BOTH, CENTER, LEFT, RIGHT, W, X
-from ttkbootstrap.dialogs import Messagebox
+from ttkbootstrap.constants import BOTH, CENTER, W, X
 
 from ui.state_manager import StateManager
-from ui.styles import (
-    COLOR_FONDO_GENERAL,
-    COLOR_FONDO_TARJETA,
-    COLOR_MELOCOTON_DELIGHT,
-    COLOR_MELOCOTON_CALIDO,
-    COLOR_TEXTO_OSCURO,
-    COLOR_TEXTO_SECUNDARIO,
-)
 
 
 class LoginView(tb.Frame):
@@ -121,42 +112,11 @@ class LoginView(tb.Frame):
             style="PastelPeach.TButton",
             command=self._on_submit_login
         )
-        btn_login.pack(fill=X, ipady=4, pady=(0, 20))
-
-        # Panel de Ayuda con Cuentas Demo
-        frame_ayuda = tb.Labelframe(
-            card,
-            text="💡 Cuentas de Acceso Rápido",
-            padding=12,
-            style="Pastel.TLabelframe"
-        )
-        frame_ayuda.pack(fill=X)
-
-        cuentas_demo = [
-            ("admin", "admin123", "Admin (Global)"),
-            ("gobierno", "gobierno123", "Gobierno (Distrital)"),
-            ("carlos_norte", "comunidad123", "Comunidad (Sector Norte)"),
-            ("mariana_centro", "comunidad123", "Comunidad (Sector Centro)"),
-        ]
-
-        for u, p, desc in cuentas_demo:
-            btn_chip = tb.Button(
-                frame_ayuda,
-                text=f"{u} / {p} [{desc}]",
-                style="PastelNeutral.TButton",
-                command=lambda user=u, pwd=p: self._autocompletar(user, pwd)
-            )
-            btn_chip.pack(fill=X, pady=2)
+        btn_login.pack(fill=X, ipady=4, pady=(0, 10))
 
         # Enlace de tecla Enter para iniciar sesión
         self.entry_password.bind("<Return>", lambda event: self._on_submit_login())
         self.entry_usuario.bind("<Return>", lambda event: self.entry_password.focus())
-
-    def _autocompletar(self, user: str, pwd: str) -> None:
-        """Autocompleta los campos para facilitar pruebas ágiles."""
-        self.var_usuario.set(user)
-        self.var_password.set(pwd)
-        self.var_mensaje_error.set("")
 
     def _on_submit_login(self) -> None:
         """Procesa el intento de login delegando en el StateManager."""

@@ -5,7 +5,11 @@
     "descripcion": "Fuga importante de agua en la avenida principal reparándose.",
     "tipo_incidente": "Alcantarillado",
     "estado": "EnProceso",
-    "nivel_prioridad": 5
+    "nivel_prioridad": 5,
+    "fecha_reporte": "2026-10-28 10:00",
+    "creado_por": "comunidad",
+    "usuarios_votantes": [],
+    "justificacion_estado": ""
   },
   {
     "id": 2,
@@ -13,7 +17,11 @@
     "descripcion": "Transformador averiado con chispas en poste de alumbrado público.",
     "tipo_incidente": "FallaElectrica",
     "estado": "Reportado",
-    "nivel_prioridad": 4
+    "nivel_prioridad": 4,
+    "fecha_reporte": "2026-10-28 10:00",
+    "creado_por": "comunidad",
+    "usuarios_votantes": [],
+    "justificacion_estado": ""
   },
   {
     "id": 3,
@@ -21,7 +29,11 @@
     "descripcion": "Desbordamiento de aguas negras frente a colegio distrital tras lluvia.",
     "tipo_incidente": "Alcantarillado",
     "estado": "Reportado",
-    "nivel_prioridad": 4
+    "nivel_prioridad": 4,
+    "fecha_reporte": "2026-10-28 10:00",
+    "creado_por": "comunidad",
+    "usuarios_votantes": [],
+    "justificacion_estado": ""
   },
   {
     "id": 4,
@@ -29,7 +41,11 @@
     "descripcion": "Poste inclinado con cableado de media tensión colgando sobre la acera.",
     "tipo_incidente": "FallaElectrica",
     "estado": "EnProceso",
-    "nivel_prioridad": 5
+    "nivel_prioridad": 5,
+    "fecha_reporte": "2026-10-28 10:00",
+    "creado_por": "comunidad",
+    "usuarios_votantes": [],
+    "justificacion_estado": ""
   },
   {
     "id": 5,
@@ -37,7 +53,11 @@
     "descripcion": "Fuga importante de agua potable inundando la vía pública.",
     "tipo_incidente": "Alcantarillado",
     "estado": "Reportado",
-    "nivel_prioridad": 2
+    "nivel_prioridad": 2,
+    "fecha_reporte": "2026-10-28 10:00",
+    "creado_por": "comunidad",
+    "usuarios_votantes": [],
+    "justificacion_estado": ""
   },
   {
     "id": 6,
@@ -45,7 +65,11 @@
     "descripcion": "Fuga importante de agua potable inundando la vía pública.",
     "tipo_incidente": "Alcantarillado",
     "estado": "Reportado",
-    "nivel_prioridad": 2
+    "nivel_prioridad": 2,
+    "fecha_reporte": "2026-10-28 10:00",
+    "creado_por": "comunidad",
+    "usuarios_votantes": [],
+    "justificacion_estado": ""
   },
   {
     "id": 7,
@@ -53,7 +77,11 @@
     "descripcion": "Fuga importante de agua potable inundando la vía pública.",
     "tipo_incidente": "Alcantarillado",
     "estado": "Reportado",
-    "nivel_prioridad": 2
+    "nivel_prioridad": 2,
+    "fecha_reporte": "2026-10-28 10:00",
+    "creado_por": "comunidad",
+    "usuarios_votantes": [],
+    "justificacion_estado": ""
   },
   {
     "id": 8,
@@ -61,7 +89,11 @@
     "descripcion": "Fuga importante de agua potable inundando la vía pública.",
     "tipo_incidente": "Alcantarillado",
     "estado": "Reportado",
-    "nivel_prioridad": 2
+    "nivel_prioridad": 2,
+    "fecha_reporte": "2026-10-28 10:00",
+    "creado_por": "comunidad",
+    "usuarios_votantes": [],
+    "justificacion_estado": ""
   },
   {
     "id": 10,
@@ -69,7 +101,11 @@
     "descripcion": "Fuga importante de agua potable inundando la vía pública.",
     "tipo_incidente": "Alcantarillado",
     "estado": "Reportado",
-    "nivel_prioridad": 2
+    "nivel_prioridad": 2,
+    "fecha_reporte": "2026-10-28 10:00",
+    "creado_por": "comunidad",
+    "usuarios_votantes": [],
+    "justificacion_estado": ""
   },
   {
     "id": 11,
@@ -77,7 +113,11 @@
     "descripcion": "Fuga importante de agua potable inundando la vía pública.",
     "tipo_incidente": "Alcantarillado",
     "estado": "Reportado",
-    "nivel_prioridad": 3
+    "nivel_prioridad": 3,
+    "fecha_reporte": "2026-10-28 10:00",
+    "creado_por": "comunidad",
+    "usuarios_votantes": [],
+    "justificacion_estado": ""
   },
   {
     "id": 12,
@@ -85,7 +125,11 @@
     "descripcion": "Fuga importante de agua potable inundando la vía pública.",
     "tipo_incidente": "Alcantarillado",
     "estado": "Reportado",
-    "nivel_prioridad": 2
+    "nivel_prioridad": 2,
+    "fecha_reporte": "2026-10-28 10:00",
+    "creado_por": "comunidad",
+    "usuarios_votantes": [],
+    "justificacion_estado": ""
   },
   {
     "id": 13,
@@ -93,7 +137,11 @@
     "descripcion": "Fuga importante de agua potable inundando la vía pública.",
     "tipo_incidente": "Alcantarillado",
     "estado": "Reportado",
-    "nivel_prioridad": 2
+    "nivel_prioridad": 2,
+    "fecha_reporte": "2026-10-28 10:00",
+    "creado_por": "comunidad",
+    "usuarios_votantes": [],
+    "justificacion_estado": ""
   },
   {
     "id": 14,
@@ -101,7 +149,11 @@
     "descripcion": "Fuga importante de agua potable inundando la vía pública.",
     "tipo_incidente": "Alcantarillado",
     "estado": "Reportado",
-    "nivel_prioridad": 2
+    "nivel_prioridad": 2,
+    "fecha_reporte": "2026-10-28 10:00",
+    "creado_por": "comunidad",
+    "usuarios_votantes": [],
+    "justificacion_estado": ""
   },
   {
     "id": 15,
@@ -109,6 +161,10 @@
     "descripcion": "Fuga importante de agua potable inundando la vía pública.",
     "tipo_incidente": "Alcantarillado",
     "estado": "Reportado",
-    "nivel_prioridad": 2
+    "nivel_prioridad": 2,
+    "fecha_reporte": "2026-10-28 10:00",
+    "creado_por": "comunidad",
+    "usuarios_votantes": [],
+    "justificacion_estado": ""
   }
 ]

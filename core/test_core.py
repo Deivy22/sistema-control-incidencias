@@ -10,16 +10,26 @@ from core.engine import (
     validar_descripcion,
     es_descripcion_valida,
     adherir_voto_incidente,
+    ha_votado_usuario,
     clasificar_incidente,
     validar_incidente_complejo,
+    validar_transicion_estado,
     filtrar_por_permisos,
     actualizar_incidente,
     validar_tipo_incidente,
+    validar_nuevo_tipo_incidente,
+    agregar_tipo_inmutable,
     eliminar_incidente_por_id,
     ResultadoValidacion,
 )
-from core.auth import autenticar_usuario
+from core.auth import (
+    autenticar_usuario,
+    validar_datos_usuario,
+    construir_registro_usuario,
+    agregar_usuario_inmutable,
+)
 from core.analisis import (
+    calcular_metricas_globales,
     crear_filtro_por_sector,
     filtrar_y_resumir_por_sector,
     calcular_prioridad_total,
@@ -362,6 +372,201 @@ class TestCoreFuncional(unittest.TestCase):
         self.assertEqual(len(resultado_inexistente), 3)
         self.assertEqual([inc.id for inc in resultado_inexistente], [1, 2, 3])
         self.assertIsNot(resultado_inexistente, incidentes_originales)
+
+    def test_validar_datos_usuario_puro_exito(self):
+        """Valida que validar_datos_usuario acepte datos conformes."""
+        existentes = [{"id": 1, "username": "admin", "rol": "Admin"}]
+        res = validar_datos_usuario(
+            username="nuevo_vecino",
+            password="password123",
+            nombre="Juan Pérez",
+            rol="Comunidad",
+            sector="Sector Norte",
+            usuarios_existentes=existentes
+        )
+        self.assertTrue(res.es_valido)
+        self.assertEqual(res.motivo, "Datos de usuario válidos.")
+
+    def test_validar_datos_usuario_puro_rechazos(self):
+        """Valida rechazos específicos por reglas funcionales de validación."""
+        existentes = [{"id": 1, "username": "carlos", "rol": "Comunidad"}]
+
+        # 1. Nombre muy corto
+        res_nom = validar_datos_usuario("user1", "pass123", "Al", "Comunidad", "Sector Norte", existentes)
+        self.assertFalse(res_nom.es_valido)
+        self.assertIn("al menos 3 caracteres", res_nom.motivo)
+
+        # 2. Username muy corto
+        res_usr = validar_datos_usuario("ab", "pass123", "Alberto", "Comunidad", "Sector Norte", existentes)
+        self.assertFalse(res_usr.es_valido)
+        self.assertIn("al menos 3 caracteres", res_usr.motivo)
+
+        # 3. Username con caracteres especiales no permitidos
+        res_char = validar_datos_usuario("user@#$", "pass123", "Alberto", "Comunidad", "Sector Norte", existentes)
+        self.assertFalse(res_char.es_valido)
+        self.assertIn("solo puede contener", res_char.motivo)
+
+        # 4. Username duplicado (case-insensitive)
+        res_dup = validar_datos_usuario("CARLOS", "pass123", "Carlos Otro", "Comunidad", "Sector Norte", existentes)
+        self.assertFalse(res_dup.es_valido)
+        self.assertIn("ya está registrado", res_dup.motivo)
+
+        # 5. Contraseña corta
+        res_pwd = validar_datos_usuario("usuario_nuevo", "12", "Alberto", "Comunidad", "Sector Norte", existentes)
+        self.assertFalse(res_pwd.es_valido)
+        self.assertIn("al menos 4 caracteres", res_pwd.motivo)
+
+        # 6. Rol no reconocido
+        res_rol = validar_datos_usuario("usuario_nuevo", "pass123", "Alberto", "SuperUser", "Sector Norte", existentes)
+        self.assertFalse(res_rol.es_valido)
+        self.assertIn("no reconocido", res_rol.motivo)
+
+        # 7. Rol Comunidad sin sector
+        res_sec = validar_datos_usuario("usuario_nuevo", "pass123", "Alberto", "Comunidad", "  ", existentes)
+        self.assertFalse(res_sec.es_sec_err if hasattr(res_sec, "es_sec_err") else res_sec.es_valido)
+        self.assertIn("obligatorio", res_sec.motivo)
+
+    def test_construir_registro_usuario_y_agregar_inmutable(self):
+        """Valida la construcción pura y la agregación no destructiva de usuarios."""
+        existentes = [{"id": 1, "username": "admin", "rol": "Admin"}]
+        copia_ref = list(existentes)
+
+        nuevo = construir_registro_usuario(
+            nuevo_id=2,
+            username="laura_distrito",
+            password="sec123password",
+            nombre="Laura Méndez",
+            rol="Gobierno",
+            sector=""  # default automático para Gobierno -> "Distrito"
+        )
+        self.assertEqual(nuevo["id"], 2)
+        self.assertEqual(nuevo["sector"], "Distrito")
+
+        actualizada = agregar_usuario_inmutable(existentes, nuevo)
+
+        # La lista original no se mutó
+        self.assertEqual(len(existentes), 1)
+        self.assertEqual(existentes, copia_ref)
+
+        # La nueva lista contiene 2 elementos y no es la misma referencia
+        self.assertEqual(len(actualizada), 2)
+        self.assertIsNot(actualizada, existentes)
+        self.assertEqual(actualizada[1]["username"], "laura_distrito")
+
+    def test_validar_nuevo_tipo_incidente_puro(self):
+        """Valida que validar_nuevo_tipo_incidente aplique reglas puras de dominio."""
+        existentes = ["Choque", "Falla Electrica", "Alcantarillado"]
+
+        # 1. Éxito con tipo válido
+        res_ok = validar_nuevo_tipo_incidente("Fuga de Gas", existentes)
+        self.assertTrue(res_ok.es_valido)
+
+        # 2. Rechazo por longitud insuficiente
+        res_corta = validar_nuevo_tipo_incidente("Ab", existentes)
+        self.assertFalse(res_corta.es_valido)
+        self.assertIn("al menos 3 caracteres", res_corta.motivo)
+
+        # 3. Rechazo por duplicado case-insensitive
+        res_dup = validar_nuevo_tipo_incidente("choque", existentes)
+        self.assertFalse(res_dup.es_valido)
+        self.assertIn("ya existe", res_dup.motivo)
+
+        # 4. Rechazo por caracteres inválidos
+        res_char = validar_nuevo_tipo_incidente("Tipo<script>alert(1)</script>", existentes)
+        self.assertFalse(res_char.es_valido)
+        self.assertIn("solo puede contener", res_char.motivo)
+
+    def test_agregar_tipo_inmutable_puro(self):
+        """Valida que agregar_tipo_inmutable preserve la colección original."""
+        existentes = ["Choque", "Falla Electrica"]
+        copia_ref = list(existentes)
+
+        nueva_lista = agregar_tipo_inmutable(existentes, "Inundación")
+
+        self.assertEqual(existentes, copia_ref)
+        self.assertEqual(len(existentes), 2)
+        self.assertEqual(len(nueva_lista), 3)
+        self.assertIsNot(nueva_lista, existentes)
+        self.assertIn("Inundación", nueva_lista)
+
+    def test_voto_unico_por_usuario_puro(self):
+        """Valida que un usuario solo pueda votar una vez y se registre en la tupla inmutable."""
+        inc = Incidente(1, "Sector Norte", "Bache peligroso", "Infraestructura", "Reportado", 2)
+        self.assertFalse(ha_votado_usuario(inc, usuario_id=5))
+
+        # Primer voto del usuario 5
+        inc_votado = adherir_voto_incidente(inc, incremento=1, usuario_id=5)
+        self.assertEqual(inc_votado.nivel_prioridad, 3)
+        self.assertTrue(ha_votado_usuario(inc_votado, usuario_id=5))
+        self.assertEqual(inc_votado.usuarios_votantes, (5,))
+
+        # La instancia original no se mutó
+        self.assertEqual(inc.usuarios_votantes, ())
+        self.assertEqual(inc.nivel_prioridad, 2)
+
+        # Intento de segundo voto del mismo usuario debe lanzar ValueError
+        with self.assertRaises(ValueError):
+            adherir_voto_incidente(inc_votado, incremento=1, usuario_id=5)
+
+    def test_validar_transicion_estado_gobierno(self):
+        """Valida las transiciones operacionales de gobierno con y sin justificación."""
+        # 1. Reportado -> EnProceso (Válido sin justificación)
+        val_ini = validar_transicion_estado("Reportado", "EnProceso", "Gobierno")
+        self.assertTrue(val_ini.es_valido)
+
+        # 2. EnProceso -> Resuelto (Válido sin justificación)
+        val_res = validar_transicion_estado("EnProceso", "Resuelto", "Gobierno")
+        self.assertTrue(val_res.es_valido)
+
+        # 3. Resuelto -> EnProceso (Reapertura técnica: requiere justificación)
+        val_reap_err = validar_transicion_estado("Resuelto", "EnProceso", "Gobierno", justificacion="Corta")
+        self.assertFalse(val_reap_err.es_valido)
+        self.assertIn("justificación técnica", val_reap_err.motivo)
+
+        val_reap_ok = validar_transicion_estado(
+            "Resuelto", "EnProceso", "Gobierno",
+            justificacion="Reapareció hundimiento tras tormenta nocturna"
+        )
+        self.assertTrue(val_reap_ok.es_valido)
+
+        # 4. Descartado -> Reportado (Prohibido para gobierno, potestad de Admin)
+        val_desc_err = validar_transicion_estado("Descartado", "Reportado", "Gobierno")
+        self.assertFalse(val_desc_err.es_valido)
+        self.assertIn("Solo el Administrador", val_desc_err.motivo)
+
+    def test_validar_transicion_estado_admin(self):
+        """Valida que Admin pueda mover a cualquier estado requiriendo justificación para reaperturas/descartes."""
+        # Descartado -> Reportado (Rehabilitación administrativa con justificación)
+        val_rehab_err = validar_transicion_estado("Descartado", "Reportado", "Admin", justificacion="")
+        self.assertFalse(val_rehab_err.es_valido)
+
+        val_rehab_ok = validar_transicion_estado(
+            "Descartado", "Reportado", "Admin",
+            justificacion="Revisión de solicitud comunitaria con evidencia fotográfica válida."
+        )
+        self.assertTrue(val_rehab_ok.es_valido)
+
+    def test_calcular_metricas_globales_puro(self):
+        """Valida el cálculo analítico puro de métricas mediante HOFs."""
+        incidentes = [
+            Incidente(1, "Sector Norte", "Desc 1", "Choque", "Resuelto", 3),
+            Incidente(2, "Sector Norte", "Desc 2", "FallaElectrica", "EnProceso", 4),
+            Incidente(3, "Sector Centro", "Desc 3", "Alcantarillado", "Reportado", 5),
+            Incidente(4, "Sector Sur", "Desc 4", "Choque", "Descartado", 1),
+        ]
+        metricas = calcular_metricas_globales(incidentes)
+
+        self.assertEqual(metricas["total"], 4)
+        self.assertEqual(metricas["resueltos"], 1)
+        self.assertEqual(metricas["en_proceso"], 1)
+        self.assertEqual(metricas["reportados"], 1)
+        self.assertEqual(metricas["descartados"], 1)
+        self.assertEqual(metricas["tasa_resolucion"], 25.0)
+        self.assertEqual(metricas["criticos_pendientes"], 2)  # IDs 2 y 3 (prio >= 4, activos)
+        self.assertEqual(metricas["prioridad_total"], 13)
+        self.assertEqual(metricas["promedio_prioridad"], 3.25)
+        self.assertEqual(metricas["por_sector"]["Sector Norte"], 2)
+        self.assertEqual(metricas["por_tipo"]["Choque"], 2)
 
 
 if __name__ == "__main__":

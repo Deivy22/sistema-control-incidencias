@@ -18,6 +18,9 @@ from ttkbootstrap.dialogs import Messagebox
 from core.models import Incidente
 from ui.incidents.list_view import IncidentesListView
 from ui.incidents.form_view import IncidenteFormView
+from ui.admin.user_management_view import UserManagementView
+from ui.admin.types_management_view import IncidentTypesView
+from ui.metrics.metrics_view import MetricsDashboardView
 from ui.state_manager import StateManager
 
 
@@ -104,6 +107,27 @@ class MainWindow(tb.Frame):
         )
         # La pestaña se agrega o remueve según 'puede_modificar'
 
+        # Pestaña 4: Panel de Métricas y Rendimiento (Exclusiva Admin y Gobierno)
+        self.vista_metricas = MetricsDashboardView(
+            self.notebook,
+            state_manager=self.state_manager
+        )
+        # La pestaña se agrega o remueve según 'puede_ver_metricas'
+
+        # Pestaña 5: Gestión y Creación de Usuarios (Exclusiva para Administradores)
+        self.vista_usuarios = UserManagementView(
+            self.notebook,
+            state_manager=self.state_manager
+        )
+        # La pestaña se agrega o remueve según 'puede_administrar_usuarios'
+
+        # Pestaña 6: Catálogo y Alta de Tipos de Incidente (Exclusiva para Administradores)
+        self.vista_tipos = IncidentTypesView(
+            self.notebook,
+            state_manager=self.state_manager
+        )
+        # La pestaña se agrega o remueve según 'puede_administrar_usuarios'
+
         # 3. Barra de Estado
         self._crear_barra_estado()
 
@@ -189,6 +213,38 @@ class MainWindow(tb.Frame):
             if id_tab_editar in tabs_actuales:
                 self.notebook.forget(self.vista_editar)
 
+        # GESTIÓN DE LA PESTAÑA MÉTRICAS (EXCLUSIVA ADMIN Y GOBIERNO):
+        id_tab_metricas = str(self.vista_metricas)
+        if self.state_manager.puede_ver_metricas:
+            if id_tab_metricas not in tabs_actuales:
+                self.notebook.add(self.vista_metricas, text="📊 Panel de Métricas")
+            self.vista_metricas.refrescar_metricas()
+        else:
+            if id_tab_metricas in tabs_actuales:
+                self.notebook.forget(self.vista_metricas)
+
+        # GESTIÓN DE LA PESTAÑA USUARIOS (EXCLUSIVA ADMIN):
+        id_tab_usuarios = str(self.vista_usuarios)
+        if self.state_manager.puede_administrar_usuarios:
+            if id_tab_usuarios not in tabs_actuales:
+                self.notebook.add(self.vista_usuarios, text="👥 Gestión de Usuarios")
+            self.vista_usuarios.refrescar_tabla()
+        else:
+            if id_tab_usuarios in tabs_actuales:
+                self.notebook.forget(self.vista_usuarios)
+
+        # GESTIÓN DE LA PESTAÑA TIPOS DE INCIDENTE (EXCLUSIVA ADMIN):
+        id_tab_tipos = str(self.vista_tipos)
+        if self.state_manager.puede_administrar_usuarios:
+            if id_tab_tipos not in tabs_actuales:
+                self.notebook.add(self.vista_tipos, text="🏷️ Tipos de Incidente")
+            self.vista_tipos.refrescar_tabla()
+        else:
+            if id_tab_tipos in tabs_actuales:
+                self.notebook.forget(self.vista_tipos)
+
         # Refrescar tabla y formularios
         self.vista_lista.refrescar_tabla()
         self.vista_crear.sincronizar_con_estado()
+        if self.state_manager.puede_modificar:
+            self.vista_editar.sincronizar_con_estado()

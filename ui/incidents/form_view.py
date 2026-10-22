@@ -45,6 +45,7 @@ class IncidenteFormView(tb.Frame):
         self.var_tipo = tk.StringVar()
         self.var_estado = tk.StringVar(value="Reportado")
         self.var_prioridad = tk.IntVar(value=1)
+        self.var_justificacion = tk.StringVar(value="")
 
         self._construir_interfaz()
         self.sincronizar_con_estado()
@@ -177,6 +178,21 @@ class IncidenteFormView(tb.Frame):
             )
             spin_prioridad.pack(fill=X)
 
+            # Justificación del cambio de estado
+            tb.Label(
+                card,
+                text="Justificación del Cambio de Estado (obligatoria para reaperturas o descartes):",
+                font=("Segoe UI", 9, "bold"),
+                style="Pastel.TLabel"
+            ).pack(anchor=W, pady=(0, 4))
+
+            self.entry_justificacion = tb.Entry(
+                card,
+                textvariable=self.var_justificacion,
+                font=("Segoe UI", 9)
+            )
+            self.entry_justificacion.pack(fill=X, pady=(0, 12))
+
         # 5. Campo Descripción Detallada
         tb.Label(
             card,
@@ -263,6 +279,7 @@ class IncidenteFormView(tb.Frame):
         self.var_tipo.set(inc.tipo_incidente)
         self.var_estado.set(inc.estado)
         self.var_prioridad.set(inc.nivel_prioridad)
+        self.var_justificacion.set(inc.justificacion_estado)
         self.txt_descripcion.delete("1.0", tk.END)
         self.txt_descripcion.insert("1.0", inc.descripcion)
 
@@ -274,6 +291,7 @@ class IncidenteFormView(tb.Frame):
         self.var_tipo.set(tipos[0] if tipos else "Choque")
         self.var_estado.set("Reportado")
         self.var_prioridad.set(1)
+        self.var_justificacion.set("")
         self.txt_descripcion.delete("1.0", tk.END)
         self.state_manager.limpiar_edicion()
 
@@ -318,6 +336,7 @@ class IncidenteFormView(tb.Frame):
             incidente_id = int(raw_id)
             estado = self.var_estado.get()
             prioridad = self.var_prioridad.get()
+            justificacion = self.var_justificacion.get().strip()
 
             # DELEGACIÓN A STATE MANAGER (QUE INVOCA actualizar_incidente DE FORMA PURA)
             exito, mensaje = self.state_manager.modificar_incidente(
@@ -326,7 +345,8 @@ class IncidenteFormView(tb.Frame):
                 descripcion=descripcion,
                 tipo_incidente=tipo,
                 estado=estado,
-                nivel_prioridad=prioridad
+                nivel_prioridad=prioridad,
+                justificacion=justificacion
             )
 
             if exito:

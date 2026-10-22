@@ -13,30 +13,43 @@ Este módulo gestiona el estado mutable de la aplicación y la persistencia en d
 """
 
 from dataclasses import replace
+from datetime import datetime
 from typing import Callable, List, Optional, Sequence, Tuple
 
 from core.models import EstadoIncidente, Incidente, TipoIncidente, Usuario
 from core.engine import (
     actualizar_incidente,
     adherir_voto_incidente,
+    agregar_tipo_inmutable,
     clasificar_incidente,
     eliminar_incidente_por_id,
     filtrar_por_permisos,
+    ha_votado_usuario,
     validar_incidente_complejo,
+    validar_nuevo_tipo_incidente,
     validar_tipo_incidente,
+    validar_transicion_estado,
 )
 from core.analisis import (
+    calcular_metricas_globales,
     crear_filtro_por_sector,
     filtrar_y_resumir_por_sector,
     calcular_prioridad_total,
     extraer_ids_incidentes,
 )
-from core.auth import autenticar_usuario
+from core.auth import (
+    autenticar_usuario,
+    validar_datos_usuario,
+    construir_registro_usuario,
+    agregar_usuario_inmutable,
+)
 from data.file_handler import (
     cargar_incidentes,
     guardar_incidentes,
     cargar_usuarios,
+    guardar_usuarios,
     cargar_tipos_incidente,
+    guardar_tipos_incidente,
 )
 
 
@@ -88,6 +101,82 @@ class StateManager:
         if self._usuario_actual is None:
             return False
         return self._usuario_actual.rol == "Admin"
+
+    @property
+    def puede_administrar_usuarios(self) -> bool:
+        """Regla de roles: Solo 'Admin' tiene permisos exclusivos para gestionar y crear usuarios."""
+        if self._usuario_actual is None:
+            return False
+        return self._usuario_actual.rol == "Admin"
+
+    @property
+    def puede_ver_metricas(self) -> bool:
+        """Regla de roles: Solo 'Admin' y 'Gobierno' tienen acceso al panel de métricas."""
+        if self._usuario_actual is None:
+            return False
+        return self._usuario_actual.rol in ("Admin", "Gobierno")
+
+    def obtener_usuarios(self) -> List[dict]:
+        """
+        Retorna la lista de usuarios registrados recargada desde el almacenamiento persistente.
+        """
+        self._usuarios = cargar_usuarios()
+        return [dict(u) for u in self._usuarios]
+
+    def crear_usuario(
+        self,
+        username: str,
+        password: str,
+        nombre: str,
+        rol: str,
+        sector: str = ""
+    ) -> Tuple[bool, str]:
+        """
+        Función Impura: Registra un nuevo usuario en el sistema.
+        
+        Garantías y Control de Acceso:
+        - Acceso exclusivo al rol 'Admin'.
+        - Delega la validación íntegra en la función pura 'validar_datos_usuario' de /core/auth.py.
+        - Emplea transformaciones no destructivas ('agregar_usuario_inmutable') preservando la inmutabilidad.
+        - Persiste en disco mediante 'guardar_usuarios' de /data/file_handler.py.
+        """
+        if not self.puede_administrar_usuarios:
+            return False, "Acceso denegado: Solo los usuarios con rol 'Admin' pueden crear nuevos usuarios."
+
+        # Cargar usuarios frescos desde el disco
+        self._usuarios = cargar_usuarios()
+
+        # Validación con función pura
+        validacion = validar_datos_usuario(
+            username=username,
+            password=password,
+            nombre=nombre,
+            rol=rol,
+            sector=sector,
+            usuarios_existentes=self._usuarios
+        )
+
+        if not validacion.es_valido:
+            return False, validacion.motivo
+
+        # Asignación del próximo ID correlativo
+        nuevo_id = max((int(u.get("id", 0)) for u in self._usuarios), default=0) + 1
+
+        nuevo_registro = construir_registro_usuario(
+            nuevo_id=nuevo_id,
+            username=username,
+            password=password,
+            nombre=nombre,
+            rol=rol,
+            sector=sector
+        )
+
+        # Transformación inmutable de la colección
+        self._usuarios = agregar_usuario_inmutable(self._usuarios, nuevo_registro)
+        guardar_usuarios(self._usuarios)
+
+        self._notificar()
+        return True, f"Usuario '{nuevo_registro['username']}' ({nuevo_registro['rol']}) creado con éxito con ID #{nuevo_id}."
 
     def autenticar(self, user: str, password: str) -> Tuple[bool, str]:
         """
@@ -155,6 +244,32 @@ class StateManager:
         self._tipos_incidente = cargar_tipos_incidente()
         return list(self._tipos_incidente)
 
+    def agregar_tipo_incidente(self, nuevo_tipo: str) -> Tuple[bool, str]:
+        """
+        Función Impura: Agrega un nuevo tipo de incidente al catálogo dinámico persistente.
+
+        Garantías y Control de Roles:
+        - Acceso exclusivo al rol 'Admin'.
+        - Delega la validación en la función pura 'validar_nuevo_tipo_incidente' de /core/engine.py.
+        - Emplea la función pura 'agregar_tipo_inmutable' para evitar mutación directa.
+        - Persiste en disco mediante 'guardar_tipos_incidente' de /data/file_handler.py.
+        - Notifica a observadores para refrescar los selectores de los formularios en vivo.
+        """
+        if not self.puede_administrar_usuarios:
+            return False, "Acceso denegado: Solo los usuarios con rol 'Admin' pueden agregar tipos de incidente."
+
+        self._tipos_incidente = cargar_tipos_incidente()
+
+        validacion = validar_nuevo_tipo_incidente(nuevo_tipo, self._tipos_incidente)
+        if not validacion.es_valido:
+            return False, validacion.motivo
+
+        self._tipos_incidente = agregar_tipo_inmutable(self._tipos_incidente, nuevo_tipo)
+        guardar_tipos_incidente(self._tipos_incidente)
+
+        self._notificar()
+        return True, f"Tipo de incidente '{nuevo_tipo.strip()}' agregado exitosamente al catálogo."
+
     def obtener_ids_incidentes(self) -> List[int]:
         """
         Retorna la lista de IDs de incidentes existentes proyectados
@@ -181,13 +296,20 @@ class StateManager:
 
         prioridad_sugerida, _ = clasificar_incidente(tipo_incidente)
 
+        creador = self._usuario_actual.nombre if self._usuario_actual else "comunidad"
+        fecha_hora = datetime.now().strftime("%Y-%m-%d %H:%M")
+
         candidato = Incidente(
             id=self._siguiente_id,
             sector=sector.strip(),
             descripcion=descripcion.strip(),
             tipo_incidente=tipo_incidente,  # type: ignore
             estado="Reportado",
-            nivel_prioridad=prioridad_sugerida
+            nivel_prioridad=prioridad_sugerida,
+            fecha_reporte=fecha_hora,
+            creado_por=creador,
+            usuarios_votantes=(),
+            justificacion_estado=""
         )
 
         validacion = validar_incidente_complejo(candidato)
@@ -203,13 +325,26 @@ class StateManager:
 
     def adherir_voto(self, incidente_id: int, incremento: int = 1) -> Tuple[bool, str]:
         """
-        Función Impura: Incrementa votos delegando en la función pura 'adherir_voto_incidente'.
+        Función Impura: Incrementa votos delegando en la función pura 'adherir_voto_incidente'
+        y haciendo cumplir la regla de 1 voto por usuario.
         """
         incidente_objetivo = self.obtener_incidente_por_id(incidente_id)
         if incidente_objetivo is None:
             return False, f"No se encontró el incidente #{incidente_id}."
 
-        nuevo_incidente = adherir_voto_incidente(incidente_objetivo, incremento)
+        usuario_id = self._usuario_actual.id if self._usuario_actual else None
+
+        if usuario_id is not None and ha_votado_usuario(incidente_objetivo, usuario_id):
+            return False, f"Ya has registrado tu voto para el incidente #{incidente_id}. Cada usuario puede emitir un único voto."
+
+        try:
+            nuevo_incidente = adherir_voto_incidente(
+                incidente=incidente_objetivo,
+                incremento=incremento,
+                usuario_id=usuario_id
+            )
+        except ValueError as e:
+            return False, str(e)
 
         self._incidentes = [
             nuevo_incidente if inc.id == incidente_id else inc
@@ -227,11 +362,12 @@ class StateManager:
         descripcion: str,
         tipo_incidente: str,
         estado: str,
-        nivel_prioridad: int
+        nivel_prioridad: int,
+        justificacion: str = ""
     ) -> Tuple[bool, str]:
         """
         Función Impura: Modifica un incidente sin mutar el objeto original,
-        delegando en la función pura 'actualizar_incidente' de /core/engine.py.
+        validando transiciones lógicas de estado y delegando en 'actualizar_incidente'.
         """
         if not self.puede_modificar:
             return False, "Acceso denegado: El rol Comunidad no tiene permisos para modificar incidentes."
@@ -243,6 +379,16 @@ class StateManager:
         if not validar_tipo_incidente(tipo_incidente, self._tipos_incidente):
             return False, f"El tipo '{tipo_incidente}' no es válido según el catálogo de incidentes."
 
+        # Validación pura de transición de estado basada en rol y justificación
+        val_transicion = validar_transicion_estado(
+            estado_actual=incidente_original.estado,
+            nuevo_estado=estado,
+            rol_usuario=self._usuario_actual.rol,  # type: ignore
+            justificacion=justificacion
+        )
+        if not val_transicion.es_valido:
+            return False, val_transicion.motivo
+
         # DELEGACIÓN A FUNCIÓN PURA: genera una nueva copia inmutable sin mutar el original
         incidente_actualizado = actualizar_incidente(
             incidente_original=incidente_original,
@@ -250,7 +396,8 @@ class StateManager:
             descripcion=descripcion,
             tipo_incidente=tipo_incidente,  # type: ignore
             estado=estado,                  # type: ignore
-            nivel_prioridad=nivel_prioridad
+            nivel_prioridad=nivel_prioridad,
+            justificacion_estado=justificacion if justificacion.strip() else incidente_original.justificacion_estado
         )
 
         validacion = validar_incidente_complejo(incidente_actualizado)
@@ -265,7 +412,7 @@ class StateManager:
 
         self._incidente_en_edicion = None
         self._notificar()
-        return True, f"Incidente #{incidente_id} actualizado con éxito."
+        return True, f"Incidente #{incidente_id} actualizado con éxito ({val_transicion.motivo})."
 
     def eliminar_incidente(self, incidente_id: int) -> Tuple[bool, str]:
         """
@@ -356,3 +503,10 @@ class StateManager:
     def obtener_info_departamento(self, incidente: Incidente) -> str:
         _, departamento = clasificar_incidente(incidente)
         return departamento
+
+    def obtener_metricas_sistema(self) -> dict:
+        """
+        Retorna el resumen analítico global de incidentes procesado mediante
+        la función pura 'calcular_metricas_globales' de /core/analisis.py.
+        """
+        return calcular_metricas_globales(self._incidentes)

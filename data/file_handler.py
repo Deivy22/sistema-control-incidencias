@@ -151,7 +151,11 @@ def cargar_incidentes(
                 descripcion=str(item["descripcion"]),
                 tipo_incidente=item["tipo_incidente"],
                 estado=item["estado"],
-                nivel_prioridad=int(item["nivel_prioridad"])
+                nivel_prioridad=int(item["nivel_prioridad"]),
+                fecha_reporte=str(item.get("fecha_reporte", "2026-10-28 10:00")),
+                creado_por=str(item.get("creado_por", "comunidad")),
+                usuarios_votantes=tuple(int(v) for v in item.get("usuarios_votantes", [])),
+                justificacion_estado=str(item.get("justificacion_estado", "")),
             )
             incidentes.append(inc)
 
